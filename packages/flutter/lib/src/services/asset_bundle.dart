@@ -107,8 +107,8 @@ class NetworkAssetBundle extends AssetBundle {
   /// Creates an network asset bundle that resolves asset keys as URLs relative
   /// to the given base URL.
   NetworkAssetBundle(Uri baseUrl)
-    : _baseUrl = baseUrl,
-      _httpClient = HttpClient();
+      : _baseUrl = baseUrl,
+        _httpClient = HttpClient();
 
   final Uri _baseUrl;
   final HttpClient _httpClient;
@@ -183,18 +183,21 @@ abstract class CachingAssetBundle extends AssetBundle {
     assert(parser != null);
     if (_structuredDataCache.containsKey(key))
       return _structuredDataCache[key]! as Future<T>;
-    Completer<T>? completer;
+    final Completer<T> completer = Completer<T>();
     Future<T>? result;
-    loadString(key, cache: false).then<T>(parser).then<void>((T value) {
-      result = SynchronousFuture<T>(value);
-      _structuredDataCache[key] = result!;
-      if (completer != null) {
-        // We already returned from the loadStructuredData function, which means
-        // we are in the asynchronous mode. Pass the value to the completer. The
-        // completer's future is what we returned.
-        completer.complete(value);
-      }
-    });
+    loadString(key, cache: false)
+      .then<T>(parser)
+      .then<void>((T value) {
+        result = SynchronousFuture<T>(value);
+        _structuredDataCache[key] = result!;
+        if (completer != null) {
+          // We already returned from the loadStructuredData function, which means
+          // we are in the asynchronous mode. Pass the value to the completer. The
+          // completer's future is what we returned.
+          completer.complete(value);
+        }
+      })
+      .catchError(completer.completeError);
     if (result != null) {
       // The code above ran synchronously, and came up with an answer.
       // Return the SynchronousFuture that we created above.
@@ -202,7 +205,6 @@ abstract class CachingAssetBundle extends AssetBundle {
     }
     // The code above hasn't yet run its "then" handler yet. Let's prepare a
     // completer for it to use when it does run.
-    completer = Completer<T>();
     _structuredDataCache[key] = completer.future;
     return completer.future;
   }
@@ -218,11 +220,11 @@ abstract class CachingAssetBundle extends AssetBundle {
 class PlatformAssetBundle extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
-    final Uint8List encoded = utf8.encoder.convert(Uri(path: Uri.encodeFull(key)).path);
-    final ByteData? asset =
-        await defaultBinaryMessenger.send('flutter/assets', encoded.buffer.asByteData());
-    if (asset == null)
-      throw FlutterError('Unable to load asset: $key');
+    final Uint8List encoded =
+        utf8.encoder.convert(Uri(path: Uri.encodeFull(key)).path);
+    final ByteData? asset = await defaultBinaryMessenger.send(
+        'flutter/assets', encoded.buffer.asByteData());
+    if (asset == null) throw FlutterError('Unable to load asset: $key');
     return asset;
   }
 }
